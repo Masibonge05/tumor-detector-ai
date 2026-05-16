@@ -4,7 +4,7 @@
 **Course:** Signal Processing 4A (SIGEEA4)  
 **Project:** Brain Tumor Detection from MRI Scans
 
-A polished academic project that classifies brain MRI scans into four diagnostic categories using a custom convolutional neural network, with a complete training pipeline, evaluation artifacts, and an interactive Streamlit dashboard.
+An academic project that classifies brain MRI scans into four diagnostic categories using a custom convolutional neural network, with a complete training pipeline, evaluation artifacts, and an interactive Streamlit dashboard.
 
 ## Project Structure
 
