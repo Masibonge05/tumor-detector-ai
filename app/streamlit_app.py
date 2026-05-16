@@ -6,16 +6,10 @@ import json
 import sys
 from pathlib import Path
 
-import cv2
 import matplotlib.pyplot as plt
 import numpy as np
-import onnxruntime as ort
 import streamlit as st
 from PIL import Image
-
-# The app now uses ONNX Runtime for inference.
-# Convert your trained Keras .h5 model to ONNX first and place it in
-# saved_models/brain_tumor_cnn.onnx before using the prediction page.
 
 # Ensure the app can import project modules even when executed from the app folder.
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -23,9 +17,7 @@ sys.path.insert(0, str(PROJECT_ROOT))
 
 from src.utils import config as cfg
 
-ONNX_MODEL_PATH = PROJECT_ROOT / "saved_models" / "brain_tumor_cnn.onnx"
-
-
+# Load saved class labels if they exist, otherwise fall back to config.
 def _load_saved_class_names() -> list[str]:
     if cfg.CLASS_NAMES_PATH.exists():
         try:
@@ -36,49 +28,6 @@ def _load_saved_class_names() -> list[str]:
         except json.JSONDecodeError:
             pass
     return cfg.CLASS_NAMES
-
-
-@st.cache_resource(show_spinner="Loading ONNX model…")
-def _load_onnx_session():
-    if not ONNX_MODEL_PATH.exists():
-        raise FileNotFoundError(
-            "No ONNX model found. Convert your Keras .h5 model to ONNX and "
-            "place it at saved_models/brain_tumor_cnn.onnx"
-        )
-    return ort.InferenceSession(
-        ONNX_MODEL_PATH.as_posix(),
-        providers=["CPUExecutionProvider"],
-    )
-
-
-def _prepare_image_for_onnx(image: Image.Image) -> np.ndarray:
-    img = np.asarray(image.convert("RGB"))
-    img = cv2.resize(img, cfg.IMG_SIZE, interpolation=cv2.INTER_AREA)
-    img = img.astype(np.float32) / 255.0
-    return np.expand_dims(img, axis=0)
-
-
-def _run_onnx_prediction(session, image: Image.Image) -> dict:
-    input_name = session.get_inputs()[0].name
-    output_name = session.get_outputs()[0].name
-    x = _prepare_image_for_onnx(image)
-    probs = session.run([output_name], {input_name: x})[0]
-    probs = np.asarray(probs).squeeze()
-    if probs.ndim != 1:
-        raise ValueError("Unexpected ONNX output shape: %s" % (probs.shape,))
-
-    class_names = _load_saved_class_names()
-    idx = int(np.argmax(probs))
-    pred_name = class_names[idx]
-    return {
-        "predicted_class": pred_name,
-        "display_name": cfg.CLASS_DISPLAY[pred_name],
-        "confidence": float(probs[idx]),
-        "probabilities": {
-            class_names[i]: float(p)
-            for i, p in enumerate(probs)
-        },
-    }
 
 
 # Configure the Streamlit page metadata and layout.
@@ -154,11 +103,11 @@ if page == "Overview":
 
     st.info("Use the sidebar to upload an MRI scan and run a live prediction.")
 
-# Prediction page where users upload images and view ONNX Runtime output.
+# Prediction page where users upload images and view CNN output.
 elif page == "Prediction":
     st.title("MRI Prediction")
     st.caption(
-        "Upload an MRI scan and the ONNX Runtime model will predict the tumor class with confidence scores."
+        "Upload an MRI scan and the CNN will predict the tumor class with confidence scores and a Grad-CAM heatmap."
     )
 
     uploaded = st.file_uploader(
@@ -170,42 +119,40 @@ elif page == "Prediction":
         st.warning("Please upload an MRI image to start.")
     else:
         try:
-            session = _load_onnx_session()
+            predict_image, gradcam_overlay = _load_predictor()
         except FileNotFoundError as exc:
-            st.error(f"{exc}")
+            st.error(f" {exc}")
             st.stop()
 
         image = Image.open(uploaded).convert("RGB")
+        np_img = np.array(image)
 
         col_left, col_right = st.columns([1, 1])
         with col_left:
             st.markdown("#### Uploaded MRI")
             st.image(image, use_container_width=True)
 
-        with st.spinner("Running ONNX Runtime inference…"):
+        with st.spinner("Running CNN inference…"):
             try:
-                info = _run_onnx_prediction(session, image)
+                overlay, info = gradcam_overlay(np_img)
             except Exception as exc:
                 st.error(f"Prediction failed: {exc}")
                 st.stop()
 
         with col_right:
-            st.markdown("#### ONNX Runtime Output")
-            st.image(image,
+            st.markdown("#### Grad-CAM Explainability")
+            st.image(overlay,
                      use_container_width=True,
-                     caption="Input image used for ONNX inference")
-            st.caption(
-                "Grad-CAM explainability is not available with the current ONNX runtime path."
-            )
+                     caption="Regions the CNN focused on for its decision")
 
         predicted_label = info["display_name"]
         predicted_prob = info["confidence"]
         if info["predicted_class"] == "notumor":
             st.success(f"**Predicted class:** {predicted_label}  \n"
-                       f"**Model confidence:** {predicted_prob*100:.2f}%")
+                       f"**CNN confidence:** {predicted_prob*100:.2f}%")
         else:
             st.warning(f"**Predicted class:** {predicted_label}  \n"
-                       f"**Model confidence:** {predicted_prob*100:.2f}%")
+                       f"**CNN confidence:** {predicted_prob*100:.2f}%")
 
         probabilities = {
             class_name: float(info["probabilities"].get(class_name, 0.0))
