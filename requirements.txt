@@ -1,23 +1,23 @@
 
-tensorflow>=2.13.0,<2.22.0
-keras>=2.13.0
+tensorflow-cpu
+keras
 
 
-opencv-python>=4.8.0
-Pillow>=10.0.0
+opencv-python-headless
+Pillow
 
 
-numpy>=1.24.0
-pandas>=2.0.0
+numpy
+pandas
 
 
-matplotlib>=3.7.0
-seaborn>=0.12.0
-scikit-learn>=1.3.0
+matplotlib
+seaborn
+scikit-learn
 
 
-streamlit>=1.28.0
+streamlit
 
 
-tqdm>=4.65.0
+tqdm
 
