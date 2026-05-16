@@ -1,7 +1,6 @@
 # Brain Tumor MRI Classification using Convolutional Neural Networks
 
-**Student Name:** SHABALALA MN  
-**Student Number:** 219024007  
+**Student Name:** SHABALALA MN   
 **Course:** Signal Processing 4A (SIGEEA4)  
 **Project:** Brain Tumor Detection from MRI Scans
 
@@ -35,10 +34,6 @@ python main.py --mode train --epochs 50 --batch-size 16
 ```bash
 python main.py --mode evaluate
 ```
-
-### Predict a single image
-```bash
-python main.py --mode predict --image path/to/mri.jpg
 ```
 
 ### Launch the Streamlit app
@@ -49,4 +44,3 @@ streamlit run app/streamlit_app.py
 Open `http://localhost:8501` in your browser.
 
 
-# tumor-detector-ai
